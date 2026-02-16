@@ -19,6 +19,7 @@
     "build": "vite build && tsc --project tsconfig.server.json",
     "start": "node dist/server/index.js",
     "init": "tsx src/server/init.ts",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
