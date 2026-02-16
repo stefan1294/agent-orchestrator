@@ -299,7 +299,6 @@ Once implementation succeeds, the orchestrator:
 This verification agent gets a different prompt:
 - **Do not modify any source code** — only observe and report
 - Verify using Bash commands: curl API calls, CLI commands, database queries, running tests
-- Visually inspect screenshots (the agent is multimodal — it can see images)
 - Report `STEP N: PASS/FAIL` for each acceptance step from `features.json`
 
 The verification agent has restricted tools — `Bash`, `Read`, `Write` only (no `Edit`), so it can't accidentally modify your code.
