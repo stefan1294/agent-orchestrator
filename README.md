@@ -2,6 +2,19 @@
 
 Multi-track orchestration tool that parallelizes AI coding agents (Claude, Codex) across git worktrees. Point it at a features list, and it will implement, verify, and merge features in parallel — with a real-time dashboard to monitor progress.
 
+## Table of Contents
+
+- [Why this exists](#why-this-exists)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [CLI Reference](#cli-reference)
+- [Features](#features)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [How it works](#how-it-works)
+- [Security Considerations](#security-considerations)
+- [Development](#development)
+
 <!-- SCREENSHOT: Place a screenshot of the dashboard here showing tracks running with live output.
      Recommended: capture the dashboard at http://localhost:3001 with 2+ tracks active.
      Save as docs/screenshot-dashboard.png and uncomment the line below. -->
@@ -348,6 +361,17 @@ AI coding agents run with your permissions. They can read files, execute command
 
 **We do not recommend using this tool on projects intended for production** unless you have reviewed the risks below and put appropriate safeguards in place.
 
+### No sandboxing
+
+The orchestrator does **not** sandbox agent processes. When an agent is spawned, it runs as your user with full filesystem and network access. Specifically:
+
+- **Filesystem:** Agents can read and write files anywhere on your machine — not just inside the project directory. The prompt tells the agent to stay in the worktree, but nothing enforces it. An agent can `cat ~/.ssh/id_rsa`, read `~/.aws/credentials`, or browse your home directory.
+- **Environment:** The agent process inherits your full shell environment, including all environment variables.
+- **Network:** Agents can make any network call your user can — `curl`, `wget`, DNS lookups, etc. There is no egress filtering.
+- **Commands:** The `allowedTools` setting (e.g. `Bash,Read,Write,Edit`) controls which *tool types* the agent CLI can use, but does not restrict what those tools can do. An agent with `Bash` access can run any shell command.
+
+The orchestrator relies entirely on the agent CLIs' own permission models. It does not add any isolation on top. Running agents in a Docker container or restricted VM is recommended if you need stronger isolation.
+
 ### What can go wrong
 
 **Secret exposure.** Agents routinely scan files for context. This means they may read `.env`, `.npmrc`, `~/.aws/credentials`, `~/.ssh/`, kubeconfigs, service account keys, and any secrets embedded in code or config. Even a well-behaved agent can leak secrets through logs, error messages, generated patches, PR descriptions, or debug output.
@@ -373,6 +397,8 @@ AI coding agents run with your permissions. They can read files, execute command
 **Use scoped, short-lived credentials.** Never give agents long-lived "god tokens." Use one-time credentials for debugging sessions. Scope tokens to the minimum permissions needed.
 
 **Work on a dedicated branch.** Never point the orchestrator at your production branch. Use something like `ai-develop` and review all changes before merging. Keep backups.
+
+**Use a dedicated machine or VM.** Don't run the orchestrator on your main development machine where `~/.ssh`, `~/.aws`, browser profiles, and other sensitive files live. Use a clean environment — a VM, a CI runner, or a spare machine — with only the repository, the agent CLIs, and the minimum credentials needed. If an agent goes off-script, the blast radius is limited to that environment.
 
 **Review everything.** Treat every agent commit as untrusted code from a junior developer. Review diffs for correctness, security vulnerabilities (injection, XSS, auth bypasses), and accidental secret exposure before merging.
 
