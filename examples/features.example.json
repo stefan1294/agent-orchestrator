@@ -1,0 +1,43 @@
+{
+  "features": [
+    {
+      "id": 1,
+      "category": "core",
+      "name": "User authentication",
+      "description": "Implement email/password authentication with login, register, and logout functionality.",
+      "steps": [
+        "Create auth controller with login and register endpoints",
+        "Add password hashing and JWT token generation",
+        "Create login and registration form components",
+        "Add protected route middleware",
+        "Write tests for the auth flow"
+      ],
+      "status": "open"
+    },
+    {
+      "id": 2,
+      "category": "core",
+      "name": "Dashboard page",
+      "description": "Create the main dashboard page that displays a summary of key metrics and recent activity.",
+      "steps": [
+        "Design dashboard layout with metric cards",
+        "Create API endpoint for dashboard data",
+        "Implement metric cards with real-time data",
+        "Add loading states and error handling"
+      ],
+      "status": "open"
+    },
+    {
+      "id": 3,
+      "category": "marketing",
+      "name": "Landing page hero section",
+      "description": "Build an engaging hero section for the marketing landing page with headline, subheadline, and call-to-action.",
+      "steps": [
+        "Create hero component with headline, subheadline, and CTA button",
+        "Add responsive layout for mobile and desktop",
+        "Implement smooth scroll to features section"
+      ],
+      "status": "open"
+    }
+  ]
+}
