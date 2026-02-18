@@ -354,7 +354,7 @@ function getSettingValue(schema: SettingSchema, configObj: any): string {
       return value.join(',');
     }
     if (typeof value === 'object') return JSON.stringify(value);
-    if (typeof value === 'boolean') return String(value);
+    if (typeof value === 'boolean') return value ? '1' : '0';
     return String(value);
   }
   return schema.defaultValue;

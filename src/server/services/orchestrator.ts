@@ -421,10 +421,10 @@ export class Orchestrator {
         // 1. Dequeue next item from queueManager
         const queueItem = this.queueManager.dequeue(track);
 
-        // 2. If null (queue empty), break
+        // 2. If null (queue empty), wait and poll for retries/resumes
         if (!queueItem) {
-          logger.info(`Queue empty for track: ${track}`);
-          break;
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
         }
 
         // 3. Load the feature from featureStore
@@ -1052,14 +1052,19 @@ export class Orchestrator {
       );
       const verifyDurationMs = Date.now() - verifyStartTime;
 
+      // Check output for FAIL verdict (agents often exit 0 even when reporting failures)
+      const outputHasFailVerdict = /\bVERDICT:\s*FAIL/i.test(verifyResult.output || '')
+        || /\bSTEP\s+\d+:\s*FAIL/i.test(verifyResult.output || '');
+      const verifyPassed = verifyResult.success && !outputHasFailVerdict;
+
       // Update verification session in DB
       this.sessionDB.updateSession(verifySessionId, {
-        status: verifyResult.success ? 'passed' : 'failed',
+        status: verifyPassed ? 'passed' : 'failed',
         finished_at: new Date().toISOString(),
         duration_ms: verifyDurationMs,
         full_output: verifyResult.output || null,
         structured_messages: verifyResult.messages.length > 0 ? JSON.stringify(verifyResult.messages) : null,
-        error_message: verifyResult.success ? null : (verifyResult.error || 'Verification failed'),
+        error_message: verifyPassed ? null : (verifyResult.error || 'Verification failed'),
       });
 
       const verifyFinished = this.sessionDB.getSession(verifySessionId);
@@ -1068,7 +1073,11 @@ export class Orchestrator {
       }
 
       // ── Handle verification result ──
-      if (verifyResult.success) {
+      if (outputHasFailVerdict && verifyResult.success) {
+        logger.warn(`Feature ${feature.id} agent exited 0 but output contains FAIL verdict — treating as failed`);
+      }
+
+      if (verifyPassed) {
         // ✅ PASSED
         this.verificationMutex.release();
         logger.info(`Feature ${feature.id} PASSED verification on attempt ${attempt}. Released lock.`);

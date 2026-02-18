@@ -119,7 +119,7 @@ export class GitManager {
 
       // Pull latest if the branch has a remote tracking branch
       try {
-        await this.execGit(`git pull origin ${baseBranch}`);
+        await this.execGit(`git pull origin ${baseBranch}`, undefined, true);
       } catch {
         // Remote branch may not exist yet (fresh local branch) — that's fine
         logger.info(`No remote branch 'origin/${baseBranch}' found — skipping pull`);
@@ -219,14 +219,14 @@ export class GitManager {
       // see a dirty working tree (which would cause merge to fail).
       for (const file of this.PRESERVE_FILES) {
         try {
-          await this.execGit(`git checkout -- ${file}`);
+          await this.execGit(`git checkout -- ${file}`, undefined, true);
         } catch { /* file may not be tracked — that's fine */ }
       }
 
       // Ensure main repo is on baseBranch and up to date
       await this.execGit(`git checkout ${baseBranch}`);
       try {
-        await this.execGit(`git pull origin ${baseBranch}`);
+        await this.execGit(`git pull origin ${baseBranch}`, undefined, true);
       } catch {
         // Remote branch may not exist yet — that's fine
       }
@@ -239,7 +239,7 @@ export class GitManager {
       } catch (mergeError) {
         // Abort so main repo stays clean
         try {
-          await this.execGit('git merge --abort');
+          await this.execGit('git merge --abort', undefined, true);
         } catch { /* ignore */ }
 
         // Restore preserved files after abort
@@ -332,7 +332,7 @@ export class GitManager {
       } catch (mergeError) {
         // Conflict — abort and throw descriptive error
         try {
-          await this.execGit('git merge --abort', worktreePath);
+          await this.execGit('git merge --abort', worktreePath, true);
         } catch { /* ignore */ }
         const errorMsg = mergeError instanceof Error ? mergeError.message : String(mergeError);
         throw new Error(
