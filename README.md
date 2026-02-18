@@ -113,16 +113,16 @@ agent-orchestrator --version            Show version
 
 **Start options:**
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--project <path>` | Path to the project directory | Current directory |
-| `--port <number>` | Dashboard port | `3001` (or `PORT` env) |
+| Flag               | Description                   | Default                |
+|--------------------|-------------------------------|------------------------|
+| `--project <path>` | Path to the project directory | Current directory      |
+| `--port <number>`  | Dashboard port                | `3001` (or `PORT` env) |
 
 **Environment variables:**
 
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Server port (default: 3001) |
+| Variable       | Description                                    |
+|----------------|------------------------------------------------|
+| `PORT`         | Server port (default: 3001)                    |
 | `PROJECT_ROOT` | Project directory (alternative to `--project`) |
 
 ## Features
@@ -183,12 +183,12 @@ Created by `npx agent-orchestrator init`. Key fields:
 
 The `preferred` agent runs first for every feature. When it hits a rate limit, the orchestrator tries `fallbackAgents` in order before waiting.
 
-| `preferred` | `fallbackAgents` | Behavior on rate limit |
-|---|---|---|
-| `"claude"` | `["codex"]` | Switches to Codex, then waits if both are limited |
-| `"claude"` | `["codex", "gemini"]` | Tries Codex, then Gemini, then waits |
-| `"claude"` | `[]` | No fallback, waits and retries Claude |
-| `"codex"` | `["claude"]` | Switches to Claude, then waits |
+| `preferred` | `fallbackAgents`      | Behavior on rate limit                            |
+|-------------|-----------------------|---------------------------------------------------|
+| `"claude"`  | `["codex"]`           | Switches to Codex, then waits if both are limited |
+| `"claude"`  | `["codex", "gemini"]` | Tries Codex, then Gemini, then waits              |
+| `"claude"`  | `[]`                  | No fallback, waits and retries Claude             |
+| `"codex"`   | `["claude"]`          | Switches to Claude, then waits                    |
 
 Set `fallbackAgents` to `[]` to disable agent switching entirely.
 
@@ -215,10 +215,10 @@ The `instructionsFile` setting (default: `ORCHESTRATOR.md`) tells the agent what
 
 Most AI coding agents have their own instructions file convention:
 
-| Agent | Native file |
-|-------|-------------|
+| Agent  | Native file |
+|--------|-------------|
 | Claude | `CLAUDE.md` |
-| Codex | `AGENTS.md` |
+| Codex  | `AGENTS.md` |
 | Gemini | `GEMINI.md` |
 
 **How it works:**
@@ -258,10 +258,10 @@ Create files in a `prompts/` directory in your project root to customize agent i
 │  │  │(worktree)│ │(worktree)│ │(worktree)│  │   │
 │  │  └────┬─────┘ └────┬─────┘ └────┬─────┘  │   │
 │  │       │            │            │        │   │
-│  │  ┌────┴────────────┴────────────┴───────┐│   │
-│  │  │         Agent Executor               ││   │
-│  │  │      (Claude CLI / Codex CLI)        ││   │
-│  │  └──────────────────────────────────────┘│   │
+│  │  ┌────┴────────────┴────────────┴─────┐  │   │
+│  │  │         Agent Executor             │  │   │
+│  │  │      (Claude CLI / Codex CLI)      │  │   │
+│  │  └────────────────────────────────────┘  │   │
 │  └──────────────────────────────────────────┘   │
 │  ┌───────────────┐  ┌───────────────────────┐   │
 │  │ Feature Store │  │  Session DB (SQLite)  │   │
@@ -331,13 +331,13 @@ This loop repeats until either all steps pass or max attempts are exhausted. If 
 
 ### Verification configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `verification.maxAttempts` | `3` | Max verification + fix cycles per feature |
-| `verification.delayMs` | `5000` | Wait (ms) after merge before running verification |
-| `verification.disabled` | `false` | Skip verification entirely, features pass after implementation |
-| `agent.maxTurnsVerification` | `20` | Max agent conversation turns during verification |
-| `agent.allowedToolsVerification` | `Bash,Read,Write` | Tools available during verification (no Edit) |
+| Setting                          | Default           | Description                                                    |
+|----------------------------------|-------------------|----------------------------------------------------------------|
+| `verification.maxAttempts`       | `3`               | Max verification + fix cycles per feature                      |
+| `verification.delayMs`           | `5000`            | Wait (ms) after merge before running verification              |
+| `verification.disabled`          | `false`           | Skip verification entirely, features pass after implementation |
+| `agent.maxTurnsVerification`     | `20`              | Max agent conversation turns during verification               |
+| `agent.allowedToolsVerification` | `Bash,Read,Write` | Tools available during verification (no Edit)                  |
 
 Set `verification.disabled` to `true` for backend-only or API-only projects where there's no running app to verify against.
 
@@ -345,13 +345,13 @@ Set `verification.disabled` to `true` for backend-only or API-only projects wher
 
 The orchestrator classifies every failure automatically:
 
-| Category | Example | What happens |
-|----------|---------|-------------|
-| **Rate limit** | `429 Too Many Requests` | Switches to fallback agent or waits and retries |
-| **Environment** | `ECONNREFUSED`, `Docker not running` | Retries; pauses track after 2 consecutive failures |
-| **Test-only** | Linting/type errors, assertion failures | Retries with context from the previous run |
-| **Implementation** | Agent couldn't complete the task | Marks feature as failed |
-| **Verification** | Verification steps didn't pass | Runs fix loop (up to `maxAttempts`) |
+| Category           | Example                                 | What happens                                       |
+|--------------------|-----------------------------------------|----------------------------------------------------|
+| **Rate limit**     | `429 Too Many Requests`                 | Switches to fallback agent or waits and retries    |
+| **Environment**    | `ECONNREFUSED`, `Docker not running`    | Retries; pauses track after 2 consecutive failures |
+| **Test-only**      | Linting/type errors, assertion failures | Retries with context from the previous run         |
+| **Implementation** | Agent couldn't complete the task        | Marks feature as failed                            |
+| **Verification**   | Verification steps didn't pass          | Runs fix loop (up to `maxAttempts`)                |
 
 You can define custom environment patterns in `criticalPatterns` to match your infrastructure (e.g., database connection errors, missing services).
 

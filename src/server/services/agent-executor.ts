@@ -952,6 +952,23 @@ Do NOT update ${this.config.progressFile} — the orchestrator handles progress 
   buildVerificationPrompt(feature: Feature): string {
     const steps = feature.steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
     const appUrl = this.config.appUrl || 'http://localhost:3000';
+    const browserEnabled = this.config.browser.enabled;
+
+    let verificationApproach: string;
+
+    if (browserEnabled) {
+      verificationApproach = `VERIFICATION APPROACH:
+- You have Chrome DevTools MCP tools available: navigate, click, fill, type, screenshot, evaluate, and more.
+- Use browser tools for UI verification: navigate to pages, check elements, fill forms, click buttons, take screenshots.
+- Use Bash commands for backend verification: curl API calls, database queries, CLI commands, running tests.
+- If verification steps include login credentials or authentication, use the browser tools to log in first before verifying authenticated pages.
+- Be thorough but efficient — combine browser and CLI verification as appropriate.`;
+    } else {
+      verificationApproach = `VERIFICATION APPROACH:
+- Use Bash commands to verify: curl API calls, database queries, CLI commands, running tests, etc.
+- Check logs, config, or any other observable side effects.
+- Be thorough but efficient.`;
+    }
 
     return `VERIFICATION ONLY — Do NOT modify any source code files.
 
@@ -964,10 +981,7 @@ Verify the following steps work correctly:
 
 ${steps}
 
-VERIFICATION APPROACH:
-- Use Bash commands to verify: curl API calls, database queries, CLI commands, running tests, etc.
-- Check logs, config, or any other observable side effects.
-- Be thorough but efficient.
+${verificationApproach}
 
 REPORT RESULTS:
 Print structured output for each verification step: "STEP N: PASS/FAIL - description"

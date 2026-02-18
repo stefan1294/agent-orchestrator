@@ -23,7 +23,10 @@
         "Design dashboard layout with metric cards",
         "Create API endpoint for dashboard data",
         "Implement metric cards with real-time data",
-        "Add loading states and error handling"
+        "Add loading states and error handling",
+        "Navigate to /dashboard and verify metric cards are visible with correct headings",
+        "Click the 'Refresh' button and verify metrics update without page reload",
+        "Log in with test user (email: admin@example.com, password: admin123) and verify the dashboard shows user-specific data"
       ],
       "status": "open"
     },

@@ -10,6 +10,7 @@ import { FeatureStore } from './feature-store.js';
 import { GitManager } from './git-manager.js';
 import type { ProjectConfig } from './project-config.js';
 import { compileCriticalPatterns } from './project-config.js';
+import { runBrowserPreflight } from './browser-preflight.js';
 import { QueueManager } from './queue-manager.js';
 import { SessionDB, type Session as DbSession } from './session-db.js';
 
@@ -137,6 +138,16 @@ export class Orchestrator {
     // Reset critical failure tracking
     this.consecutiveCriticalFailures.clear();
     this.lastCriticalLabel.clear();
+
+    // Browser verification preflight: check MCP installation for all agents
+    if (this.config.browser.enabled) {
+      logger.info('Browser verification enabled — checking MCP installation...');
+      const preflightOk = await runBrowserPreflight(this.config);
+      if (!preflightOk) {
+        logger.warn('Chrome DevTools MCP not installed for all agents — disabling browser verification.');
+        this.config.browser.enabled = false;
+      }
+    }
 
     try {
       // Initialize git worktrees and ensure main repo on develop

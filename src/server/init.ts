@@ -66,6 +66,10 @@ async function main(): Promise<void> {
       ...getDefaultConfig().prompts,
       ...(detection.config.prompts || {}),
     },
+    browser: {
+      ...getDefaultConfig().browser,
+      ...(detection.config.browser || {}),
+    },
   };
 
   // Override critical patterns if detected
@@ -197,7 +201,21 @@ async function main(): Promise<void> {
     .map((a) => a.trim())
     .filter((a) => ['claude', 'codex', 'gemini'].includes(a) && a !== config.agent.preferred);
 
-  // Step 6: Save config
+  // Step 6: Browser verification
+  heading('Browser Verification');
+  log('\nBrowser verification uses Chrome DevTools MCP to verify UI features');
+  log('(navigate pages, click buttons, fill forms, take screenshots).\n');
+
+  const enableBrowser = await ask('Enable browser-based verification? (y/n)', 'n');
+  if (enableBrowser.toLowerCase() === 'y') {
+    config.browser.enabled = true;
+    log('  Browser verification enabled.');
+    log('  If features require authentication, include login instructions in your feature steps.');
+  } else {
+    config.browser.enabled = false;
+  }
+
+  // Step 7: Save config
   heading('Summary');
   log(`\n  Project:     ${config.projectName}`);
   log(`  Framework:   ${detection.framework}`);
@@ -208,6 +226,7 @@ async function main(): Promise<void> {
   log(`  Symlinks:    ${config.worktree.symlinkDirs.join(', ') || 'none'}`);
   log(`  Agent:       ${config.agent.preferred}`);
   log(`  Fallbacks:   ${config.agent.fallbackAgents.length > 0 ? config.agent.fallbackAgents.join(', ') : 'none (will wait on rate limit)'}`);
+  log(`  Browser:     ${config.browser.enabled ? 'enabled' : 'disabled'}`);
 
   const confirm = await ask('\nSave orchestrator.config.json? (y/n)', 'y');
   if (confirm.toLowerCase() === 'y') {

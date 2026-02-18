@@ -65,6 +65,15 @@ export interface VerificationConfig {
   disabled: boolean;               // skip verification entirely
 }
 
+// ─── Browser Verification Configuration ─────────────────────────
+
+export interface BrowserConfig {
+  enabled: boolean;
+  mcpPackage: string;
+  mcpArgs: string[];       // extra args passed to the MCP server at startup
+  mcpServerName: string;
+}
+
 // ─── Full Project Configuration ──────────────────────────────────
 
 export interface ProjectConfig {
@@ -81,6 +90,7 @@ export interface ProjectConfig {
   prompts: PromptTemplates;
   agent: AgentConfig;
   verification: VerificationConfig;
+  browser: BrowserConfig;
 }
 
 // ─── Defaults ────────────────────────────────────────────────────
@@ -140,6 +150,13 @@ const DEFAULT_CONFIG: ProjectConfig = {
     maxAttempts: 3,
     delayMs: 5000,
     disabled: false,
+  },
+
+  browser: {
+    enabled: false,
+    mcpPackage: 'chrome-devtools-mcp@latest',
+    mcpArgs: ['--no-performance-crux', '--no-usage-statistics'],
+    mcpServerName: 'chrome-devtools',
   },
 };
 
