@@ -7,7 +7,7 @@ import type { Feature, Session, AgentMessage, OrchestratorStatus } from '../type
 let socket: Socket | null = null;
 
 export function useSocket() {
-  const { updateFeature, addSession, updateSession, setStatus, appendLiveOutput, addCriticalAlert } = useStore();
+  const { updateFeature, addSession, updateSession, setStatus, appendLiveOutput, addCriticalAlert, setNewCategories } = useStore();
 
   useEffect(() => {
     if (socket) return;
@@ -39,6 +39,10 @@ export function useSocket() {
         ...data,
         timestamp: new Date().toISOString(),
       });
+    });
+
+    socket.on('tracks:new_categories', (data: { categories: string[] }) => {
+      setNewCategories(data.categories);
     });
 
     return () => {

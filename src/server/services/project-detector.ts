@@ -41,6 +41,48 @@ async function hasDependency(projectRoot: string, file: string, dep: string): Pr
   return dep in (allDeps || {});
 }
 
+/**
+ * Read the app URL from .env files. Checks common env var names used by
+ * different frameworks: APP_URL (Laravel), NEXT_PUBLIC_URL, NUXT_PUBLIC_URL,
+ * VITE_APP_URL, BASE_URL, and the generic URL/PORT patterns.
+ */
+async function detectAppUrl(projectRoot: string, fallback: string): Promise<string> {
+  const envFiles = ['.env', '.env.local'];
+  const urlKeys = [
+    'APP_URL',
+    'NEXT_PUBLIC_URL',
+    'NEXT_PUBLIC_APP_URL',
+    'NUXT_PUBLIC_URL',
+    'VITE_APP_URL',
+    'BASE_URL',
+  ];
+
+  for (const envFile of envFiles) {
+    try {
+      const content = await readFile(path.join(projectRoot, envFile), 'utf-8');
+      for (const key of urlKeys) {
+        const match = content.match(new RegExp(`^${key}=(.+)$`, 'm'));
+        if (match) {
+          const value = match[1].trim().replace(/^["']|["']$/g, '');
+          if (value && value.startsWith('http')) {
+            return value;
+          }
+        }
+      }
+
+      // Fallback: check for PORT env var and build URL from it
+      const portMatch = content.match(/^PORT=(\d+)$/m);
+      if (portMatch) {
+        return `http://localhost:${portMatch[1]}`;
+      }
+    } catch {
+      // File doesn't exist, continue
+    }
+  }
+
+  return fallback;
+}
+
 export async function detectProject(projectRoot: string): Promise<DetectionResult> {
   const features: string[] = [];
 
@@ -78,7 +120,7 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
         if (hasVue) features.push('vue');
       }
 
-      return buildLaravelConfig(projectRoot, features);
+      return await buildLaravelConfig(projectRoot, features);
     }
   }
 
@@ -89,41 +131,41 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
     const hasNext = await hasDependency(projectRoot, 'package.json', 'next');
     if (hasNext) {
       features.push('next');
-      return buildNextConfig(projectRoot, features);
+      return await buildNextConfig(projectRoot, features);
     }
 
     const hasNuxt = await hasDependency(projectRoot, 'package.json', 'nuxt');
     if (hasNuxt) {
       features.push('nuxt');
-      return buildNodeConfig(projectRoot, 'Nuxt', features);
+      return await buildNodeConfig(projectRoot, 'Nuxt', features);
     }
 
     const hasSvelte = await hasDependency(projectRoot, 'package.json', 'svelte');
     if (hasSvelte) {
       features.push('svelte');
-      return buildNodeConfig(projectRoot, 'SvelteKit', features);
+      return await buildNodeConfig(projectRoot, 'SvelteKit', features);
     }
 
     const hasVue = await hasDependency(projectRoot, 'package.json', 'vue');
     if (hasVue) {
       features.push('vue');
-      return buildNodeConfig(projectRoot, 'Vue', features);
+      return await buildNodeConfig(projectRoot, 'Vue', features);
     }
 
     const hasReact = await hasDependency(projectRoot, 'package.json', 'react');
     if (hasReact) {
       features.push('react');
-      return buildNodeConfig(projectRoot, 'React', features);
+      return await buildNodeConfig(projectRoot, 'React', features);
     }
 
     const hasExpress = await hasDependency(projectRoot, 'package.json', 'express');
     if (hasExpress) {
       features.push('express');
-      return buildNodeConfig(projectRoot, 'Express', features);
+      return await buildNodeConfig(projectRoot, 'Express', features);
     }
 
     // Generic Node.js
-    return buildNodeConfig(projectRoot, 'Node.js', features);
+    return await buildNodeConfig(projectRoot, 'Node.js', features);
   }
 
   // ─── Python Detection ────────────────────────────────────────
@@ -157,18 +199,18 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
 
     if (isDjango) {
       features.push('django');
-      return buildPythonConfig(projectRoot, 'Django', features);
+      return await buildPythonConfig(projectRoot, 'Django', features);
     }
     if (isFlask) {
       features.push('flask');
-      return buildPythonConfig(projectRoot, 'Flask', features);
+      return await buildPythonConfig(projectRoot, 'Flask', features);
     }
     if (isFastAPI) {
       features.push('fastapi');
-      return buildPythonConfig(projectRoot, 'FastAPI', features);
+      return await buildPythonConfig(projectRoot, 'FastAPI', features);
     }
 
-    return buildPythonConfig(projectRoot, 'Python', features);
+    return await buildPythonConfig(projectRoot, 'Python', features);
   }
 
   // ─── Ruby / Rails Detection ──────────────────────────────────
@@ -180,10 +222,10 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
       const isRails = /gem\s+['"]rails['"]/.test(content);
       if (isRails) {
         features.push('rails');
-        return buildRailsConfig(projectRoot, features);
+        return await buildRailsConfig(projectRoot, features);
       }
     } catch { /* ignore */ }
-    return buildRubyConfig(projectRoot, features);
+    return await buildRubyConfig(projectRoot, features);
   }
 
   // ─── Go Detection ────────────────────────────────────────────
@@ -191,7 +233,7 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
   const hasGoMod = await fileExists(path.join(projectRoot, 'go.mod'));
   if (hasGoMod) {
     features.push('go');
-    return buildGoConfig(projectRoot, features);
+    return await buildGoConfig(projectRoot, features);
   }
 
   // ─── Fallback ────────────────────────────────────────────────
@@ -206,7 +248,7 @@ export async function detectProject(projectRoot: string): Promise<DetectionResul
 
 // ─── Config Builders ─────────────────────────────────────────────
 
-function buildLaravelConfig(projectRoot: string, features: string[]): DetectionResult {
+async function buildLaravelConfig(projectRoot: string, features: string[]): Promise<DetectionResult> {
   const hasSail = features.includes('sail');
   const hasDocker = features.includes('docker');
 
@@ -215,7 +257,7 @@ function buildLaravelConfig(projectRoot: string, features: string[]): DetectionR
     worktree: {
       symlinkDirs: ['vendor', 'node_modules'],
       copyFiles: ['.mcp.json', '.env'],
-      preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+      preserveFiles: ['features.json', '.orchestrator/progress.txt'],
       setupScript: null,
       setupScriptName: hasSail ? 'sail-worktree' : 'run-worktree',
       dockerService: hasSail ? 'laravel.test' : (hasDocker ? 'app' : null),
@@ -232,6 +274,10 @@ function buildLaravelConfig(projectRoot: string, features: string[]): DetectionR
     ],
   };
 
+  // Try .env first, fall back to convention (Sail=80, otherwise 8000)
+  const fallbackUrl = hasSail ? 'http://localhost' : 'http://localhost:8000';
+  config.appUrl = await detectAppUrl(projectRoot, fallbackUrl);
+
   const frontend = features.includes('react') ? 'React' : features.includes('vue') ? 'Vue' : '';
   const inertia = features.includes('inertia') ? ' + Inertia.js' : '';
   const framework = `Laravel${inertia}${frontend ? ` + ${frontend}` : ''}`;
@@ -244,19 +290,21 @@ function buildLaravelConfig(projectRoot: string, features: string[]): DetectionR
   };
 }
 
-function buildNextConfig(_projectRoot: string, features: string[]): DetectionResult {
+async function buildNextConfig(projectRoot: string, features: string[]): Promise<DetectionResult> {
   const hasDocker = features.includes('docker');
+  const appUrl = await detectAppUrl(projectRoot, 'http://localhost:3000');
 
   return {
     framework: 'Next.js',
     language: 'TypeScript/JavaScript',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: ['node_modules', '.next'],
         copyFiles: ['.mcp.json', '.env', '.env.local'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: hasDocker ? 'app' : null,
@@ -272,17 +320,23 @@ function buildNextConfig(_projectRoot: string, features: string[]): DetectionRes
   };
 }
 
-function buildNodeConfig(_projectRoot: string, framework: string, features: string[]): DetectionResult {
+async function buildNodeConfig(projectRoot: string, framework: string, features: string[]): Promise<DetectionResult> {
+  // Vite-based frameworks default to 5173, others to 3000
+  const isViteBased = ['SvelteKit', 'Vue'].includes(framework);
+  const fallbackPort = isViteBased ? 5173 : 3000;
+  const appUrl = await detectAppUrl(projectRoot, `http://localhost:${fallbackPort}`);
+
   return {
     framework,
     language: 'TypeScript/JavaScript',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: ['node_modules'],
         copyFiles: ['.mcp.json', '.env'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: null,
@@ -297,19 +351,23 @@ function buildNodeConfig(_projectRoot: string, framework: string, features: stri
   };
 }
 
-function buildPythonConfig(_projectRoot: string, framework: string, features: string[]): DetectionResult {
+async function buildPythonConfig(projectRoot: string, framework: string, features: string[]): Promise<DetectionResult> {
   const hasDocker = features.includes('docker');
+  // Django=8000, Flask=5000, FastAPI=8000, generic=8000
+  const fallbackPort = framework === 'Flask' ? 5000 : 8000;
+  const appUrl = await detectAppUrl(projectRoot, `http://localhost:${fallbackPort}`);
 
   return {
     framework,
     language: 'Python',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: ['.venv', 'venv'],
         copyFiles: ['.mcp.json', '.env'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: hasDocker ? 'app' : null,
@@ -325,19 +383,21 @@ function buildPythonConfig(_projectRoot: string, framework: string, features: st
   };
 }
 
-function buildRailsConfig(_projectRoot: string, features: string[]): DetectionResult {
+async function buildRailsConfig(projectRoot: string, features: string[]): Promise<DetectionResult> {
   const hasDocker = features.includes('docker');
+  const appUrl = await detectAppUrl(projectRoot, 'http://localhost:3000');
 
   return {
     framework: 'Rails',
     language: 'Ruby',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: ['vendor/bundle', 'node_modules'],
         copyFiles: ['.mcp.json', '.env'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: hasDocker ? 'app' : null,
@@ -353,17 +413,20 @@ function buildRailsConfig(_projectRoot: string, features: string[]): DetectionRe
   };
 }
 
-function buildRubyConfig(_projectRoot: string, features: string[]): DetectionResult {
+async function buildRubyConfig(projectRoot: string, features: string[]): Promise<DetectionResult> {
+  const appUrl = await detectAppUrl(projectRoot, 'http://localhost:3000');
+
   return {
     framework: 'Ruby',
     language: 'Ruby',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: ['vendor/bundle'],
         copyFiles: ['.mcp.json', '.env'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: null,
@@ -374,19 +437,21 @@ function buildRubyConfig(_projectRoot: string, features: string[]): DetectionRes
   };
 }
 
-function buildGoConfig(_projectRoot: string, features: string[]): DetectionResult {
+async function buildGoConfig(projectRoot: string, features: string[]): Promise<DetectionResult> {
   const hasDocker = features.includes('docker');
+  const appUrl = await detectAppUrl(projectRoot, 'http://localhost:8080');
 
   return {
     framework: 'Go',
     language: 'Go',
     features,
     config: {
+      appUrl,
       baseBranch: 'ai-develop',
       worktree: {
         symlinkDirs: [],
         copyFiles: ['.mcp.json', '.env'],
-        preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+        preserveFiles: ['features.json', '.orchestrator/progress.txt'],
         setupScript: null,
         setupScriptName: 'run-worktree',
         dockerService: hasDocker ? 'app' : null,

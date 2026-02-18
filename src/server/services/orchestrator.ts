@@ -8,9 +8,8 @@ import { logger } from '../utils/logger.js';
 import { AgentExecutor } from './agent-executor.js';
 import { FeatureStore } from './feature-store.js';
 import { GitManager } from './git-manager.js';
-import type { ProjectConfig } from './project-config.js';
-import { compileCriticalPatterns } from './project-config.js';
-import { runBrowserPreflight } from './browser-preflight.js';
+import type { ProjectConfig, TrackDefinition } from './project-config.js';
+import { compileCriticalPatterns, saveProjectConfig } from './project-config.js';
 import { QueueManager } from './queue-manager.js';
 import { SessionDB, type Session as DbSession } from './session-db.js';
 
@@ -75,6 +74,10 @@ export class Orchestrator {
   private io: Server;
   private resumeRequest: ResumeRequest | null = null;
 
+  // Setup state: tracks not yet configured
+  private setupResolver: ((tracks: TrackDefinition[]) => void) | null = null;
+  private detectedCategories: string[] = [];
+
   // Verification mutex: only one track can merge+verify at a time.
   // Separate from git-manager's gitMutex (which protects individual git ops).
   private verificationMutex: Mutex;
@@ -87,7 +90,7 @@ export class Orchestrator {
     this.criticalPatterns = compileCriticalPatterns(config);
 
     this.featureStore = new FeatureStore(path.join(projectRoot, config.featuresFile));
-    this.sessionDB = new SessionDB(path.join(projectRoot, 'orchestrator', 'database', 'orchestrator.db'));
+    this.sessionDB = new SessionDB(path.join(projectRoot, '.orchestrator', 'database', 'orchestrator.db'));
     this.gitManager = new GitManager(projectRoot, config);
     this.queueManager = new QueueManager(config.tracks);
     this.agentExecutor = new AgentExecutor(projectRoot, io, config);
@@ -139,16 +142,6 @@ export class Orchestrator {
     this.consecutiveCriticalFailures.clear();
     this.lastCriticalLabel.clear();
 
-    // Browser verification preflight: check MCP installation for all agents
-    if (this.config.browser.enabled) {
-      logger.info('Browser verification enabled — checking MCP installation...');
-      const preflightOk = await runBrowserPreflight(this.config);
-      if (!preflightOk) {
-        logger.warn('Chrome DevTools MCP not installed for all agents — disabling browser verification.');
-        this.config.browser.enabled = false;
-      }
-    }
-
     try {
       // Initialize git worktrees and ensure main repo on develop
       await this.gitManager.init();
@@ -157,6 +150,46 @@ export class Orchestrator {
       // Load features from feature store
       const features = await this.featureStore.loadFeatures();
       logger.info(`Loaded ${features.length} features from feature store`);
+
+      // Extract unique categories from features
+      const allCategories = [...new Set(features.map(f => f.category).filter(Boolean))];
+
+      // Check if tracks need to be configured
+      if (!this.config.tracksConfigured) {
+        // First start: enter setup state and wait for user to configure tracks
+        this.state = 'setup';
+        this.detectedCategories = allCategories;
+        logger.info(`Tracks not configured — entering setup state with ${allCategories.length} detected categories: ${allCategories.join(', ')}`);
+        this.emitStatus();
+
+        // Wait for configureTracks() to be called from the API
+        const tracks = await new Promise<TrackDefinition[]>((resolve) => {
+          this.setupResolver = resolve;
+        });
+
+        // Apply the configured tracks
+        this.config.tracks = tracks;
+        this.config.tracksConfigured = true;
+        await saveProjectConfig(this.projectRoot, this.config);
+        logger.info(`Tracks configured: ${tracks.map(t => t.name).join(', ')}`);
+
+        // Re-initialize queue manager with new tracks
+        this.queueManager = new QueueManager(this.config.tracks);
+
+        // Transition to running
+        this.state = 'running';
+        this.setupResolver = null;
+        this.detectedCategories = [];
+      } else {
+        // Subsequent start: check for new categories not in any track
+        const configuredCategories = this.config.tracks.flatMap(t => t.categories);
+        const newCategories = allCategories.filter(c => !configuredCategories.includes(c));
+
+        if (newCategories.length > 0) {
+          logger.info(`New categories detected: ${newCategories.join(', ')}. They will be routed to the default track.`);
+          this.io.emit('tracks:new_categories', { categories: newCategories });
+        }
+      }
 
       // Initialize queues with loaded features
       this.queueManager.initializeQueues(features);
@@ -270,13 +303,24 @@ export class Orchestrator {
     this.emitStatus();
   }
 
+  configureTracks(tracks: TrackDefinition[]): void {
+    if (this.state !== 'setup' || !this.setupResolver) {
+      throw new Error('Cannot configure tracks: orchestrator is not in setup state');
+    }
+    this.setupResolver(tracks);
+  }
+
+  getDetectedCategories(): string[] {
+    return this.detectedCategories;
+  }
+
   getStatus(): OrchestratorStatus {
     const tracks: TrackStatus[] = [];
     for (const [, status] of this.trackStatus) {
       tracks.push(status);
     }
 
-    return {
+    const result: OrchestratorStatus = {
       state: this.state,
       startedAt: this.startedAt,
       tracks,
@@ -284,6 +328,12 @@ export class Orchestrator {
         ? { ...this.resumeRequest }
         : null,
     };
+
+    if (this.state === 'setup' && this.detectedCategories.length > 0) {
+      result.detectedCategories = this.detectedCategories;
+    }
+
+    return result;
   }
 
   getFeatureStore(): FeatureStore {

@@ -44,7 +44,7 @@ const SETTINGS_SCHEMA: SettingSchema[] = [
     key: 'progressFile',
     label: 'Progress File',
     type: 'text',
-    defaultValue: 'orchestrator-progress.txt',
+    defaultValue: '.orchestrator/progress.txt',
     group: 'Project',
     description: 'Path to the progress log file relative to project root.',
   },
@@ -100,7 +100,7 @@ const SETTINGS_SCHEMA: SettingSchema[] = [
     key: 'worktree.preserveFiles',
     label: 'Preserve Files',
     type: 'tags',
-    defaultValue: 'features.json,orchestrator-progress.txt',
+    defaultValue: 'features.json,.orchestrator/progress.txt',
     group: 'Git & Worktree',
     description: 'Files to back up and restore across git checkout/merge/reset operations.',
   },
@@ -310,7 +310,17 @@ const SETTINGS_SCHEMA: SettingSchema[] = [
     defaultValue: 'false',
     group: 'Verification',
     description: 'Skip verification entirely. Features will be marked as passed after implementation.',
-    recommendation: 'Only disable for API-only or backend-only projects without a UI to verify.',
+  },
+
+  // ─── Browser Verification ──────────────────────────────────────
+  {
+    key: 'browser.enabled',
+    label: 'Chrome DevTools MCP',
+    type: 'boolean',
+    defaultValue: 'false',
+    group: 'Browser Verification',
+    description: 'Enable Chrome DevTools MCP for browser-based verification. When enabled, verification agents can navigate pages, click elements, fill forms, and take screenshots.',
+    recommendation: 'Requires the Chrome DevTools MCP server to be installed for your agents. The orchestrator will prompt you to install it on first start.',
   },
 ];
 
@@ -339,6 +349,10 @@ function setNestedValue(obj: any, key: string, value: any): void {
 function getSettingValue(schema: SettingSchema, configObj: any): string {
   const value = getNestedValue(configObj, schema.key);
   if (value !== undefined && value !== null) {
+    // Tags: join arrays with commas (not JSON.stringify)
+    if (schema.type === 'tags' && Array.isArray(value)) {
+      return value.join(',');
+    }
     if (typeof value === 'object') return JSON.stringify(value);
     if (typeof value === 'boolean') return String(value);
     return String(value);
@@ -393,7 +407,12 @@ export function createSettingsRouter(orchestrator: Orchestrator): Router {
       setNestedValue(config, key, parsed);
     }
 
-    // Persist to orchestrator.config.json
+    // If tracks were updated, mark as configured
+    if (settings.tracks) {
+      config.tracksConfigured = true;
+    }
+
+    // Persist to .orchestrator/config.json
     try {
       await saveProjectConfig(orchestrator.getProjectRoot(), config);
     } catch (err) {

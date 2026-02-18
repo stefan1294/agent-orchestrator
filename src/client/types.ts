@@ -70,12 +70,6 @@ export interface SettingDefinition {
   recommendation?: string;
 }
 
-export interface ProjectStatus {
-  configured: boolean;
-  projectRoot: string | null;
-  projectName: string | null;
-}
-
 export interface TrackDefinition {
   name: string;
   categories: string[];
@@ -84,7 +78,7 @@ export interface TrackDefinition {
 }
 
 export interface OrchestratorStatus {
-  state: 'stopped' | 'running' | 'stopping';
+  state: 'stopped' | 'running' | 'stopping' | 'setup';
   tracks: TrackStatus[];
   startedAt: string | null;
   resume?: {
@@ -92,4 +86,6 @@ export interface OrchestratorStatus {
     track: string;
     requestedAt: string;
   } | null;
+  detectedCategories?: string[];
+  newCategories?: string[];
 }

@@ -1,4 +1,4 @@
-import { Play, Square, Activity, Settings } from 'lucide-react';
+import { Play, Square, Activity } from 'lucide-react';
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { startOrchestrator, stopOrchestrator } from '../hooks/useApi';
@@ -8,19 +8,22 @@ const Nav: React.FC = () => {
   const state = useStore((s) => s.status.state);
   const location = useLocation();
 
-  const statusColor = {
+  const statusColor: Record<string, string> = {
     running: 'bg-green-500',
     stopping: 'bg-yellow-500',
     stopped: 'bg-gray-600',
-  }[state];
+    setup: 'bg-blue-500',
+  };
 
-  const statusLabel = {
+  const statusLabel: Record<string, string> = {
     running: 'Running',
     stopping: 'Stopping',
     stopped: 'Stopped',
-  }[state];
+    setup: 'Setup',
+  };
 
   const isRunning = state === 'running';
+  const isSetup = state === 'setup';
 
   const handleToggle = async () => {
     if (isRunning) {
@@ -60,10 +63,15 @@ const Nav: React.FC = () => {
             Features
           </Link>
           <Link
-            to="/settings"
-            className={`hover:text-white transition-colors font-medium flex items-center gap-1.5 ${location.pathname === '/settings' ? 'text-white' : 'text-gray-300'}`}
+            to="/tracks"
+            className={`hover:text-white transition-colors font-medium ${location.pathname === '/tracks' ? 'text-white' : 'text-gray-300'}`}
           >
-            <Settings className="w-4 h-4" />
+            Tracks
+          </Link>
+          <Link
+            to="/settings"
+            className={`hover:text-white transition-colors font-medium ${location.pathname === '/settings' ? 'text-white' : 'text-gray-300'}`}
+          >
             Settings
           </Link>
         </div>
@@ -72,17 +80,20 @@ const Nav: React.FC = () => {
         <div className="flex items-center gap-4">
           {/* Status Badge */}
           <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
-            <div className={`w-2 h-2 rounded-full ${statusColor}`}></div>
-            <span className="text-sm text-gray-300">{statusLabel}</span>
+            <div className={`w-2 h-2 rounded-full ${statusColor[state] || 'bg-gray-600'}`}></div>
+            <span className="text-sm text-gray-300">{statusLabel[state] || state}</span>
           </div>
 
           {/* Start/Stop Button */}
           <button
             onClick={handleToggle}
+            disabled={isSetup}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              isRunning
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-green-600 hover:bg-green-700 text-white'
+              isSetup
+                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                : isRunning
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
             }`}
           >
             {isRunning ? (

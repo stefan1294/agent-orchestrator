@@ -27,7 +27,7 @@ Multi-track orchestration tool that parallelizes AI coding agents (Claude, Codex
 Anthropic published [Tips for Building Effective Agents for Long-Running Coding Tasks](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents), which recommends a pattern for autonomous coding:
 
 - A **features file** (JSON) listing every feature the agent should implement
-- A **progress file** (`orchestrator-progress.txt`) for tracking state across sessions
+- A **progress file** (`.orchestrator/progress.txt`) for tracking state across sessions
 - **Git commits** after each feature for clean rollback
 - **Browser automation** for end-to-end verification
 - **Session startup rituals**: read progress, review features, pick the next one
@@ -40,6 +40,7 @@ Anthropic published [Tips for Building Effective Agents for Long-Running Coding 
 - Provides a **real-time dashboard** with live agent output
 - Handles **retries, failure analysis, and rate-limit backoff** automatically
 - **Merges passing features** back to your base branch
+- Optional **browser-based verification** via Chrome DevTools MCP
 
 ## Prerequisites
 
@@ -50,6 +51,7 @@ Anthropic published [Tips for Building Effective Agents for Long-Running Coding 
   - [Codex CLI](https://github.com/openai/codex) (`codex`)
   - [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`gemini`), experimental, not tested
   - [GitHub Copilot CLI](https://github.com/github/copilot-cli), not yet supported (lacks structured JSON output)
+- **Chrome/Chromium** (only if using browser-based verification)
 
 ## Quickstart
 
@@ -62,7 +64,7 @@ cd /path/to/your-project
 npx agent-orchestrator init
 ```
 
-This detects your framework, asks a few questions, and creates `orchestrator.config.json`.
+This detects your framework, asks a few questions, and creates `.orchestrator/config.json`. It also adds `.orchestrator/database/` to your `.gitignore`.
 
 ### 2. Create a features file
 
@@ -105,25 +107,19 @@ Open [http://localhost:3001](http://localhost:3001) to view the dashboard. Click
 ## CLI Reference
 
 ```
-agent-orchestrator init                 Initialize config in current directory
-agent-orchestrator [start] [options]    Start the dashboard + server
-agent-orchestrator --help               Show help
-agent-orchestrator --version            Show version
+agent-orchestrator init      Initialize config in current directory
+agent-orchestrator [start]   Start the dashboard + server
+agent-orchestrator --help    Show help
+agent-orchestrator --version Show version
 ```
 
-**Start options:**
-
-| Flag               | Description                   | Default                |
-|--------------------|-------------------------------|------------------------|
-| `--project <path>` | Path to the project directory | Current directory      |
-| `--port <number>`  | Dashboard port                | `3001` (or `PORT` env) |
+Both `init` and `start` must be run from your project directory.
 
 **Environment variables:**
 
-| Variable       | Description                                    |
-|----------------|------------------------------------------------|
-| `PORT`         | Server port (default: 3001)                    |
-| `PROJECT_ROOT` | Project directory (alternative to `--project`) |
+| Variable | Description                 |
+|----------|-----------------------------|
+| `PORT`   | Server port (default: 3001) |
 
 ## Features
 
@@ -136,12 +132,29 @@ agent-orchestrator --version            Show version
 - **Automatic retries.** Rate-limit backoff, environment failure detection, retry with context.
 - **Git worktree isolation.** Each track works in its own worktree, no conflicts between parallel features.
 - **Docker support.** Automatically generates worktree scripts for Docker/Sail setups.
-- **Verification pipeline.** Optional automated verification after each feature.
+- **Verification pipeline.** Optional automated verification after each feature, with CLI or browser-based checks.
+- **Browser verification.** Chrome DevTools MCP integration for UI verification — navigate pages, click buttons, fill forms, take screenshots.
 - **Session database.** SQLite-backed session history with full agent output.
 
 ## Configuration
 
-### orchestrator.config.json
+### Project structure
+
+All orchestrator artifacts live in the `.orchestrator/` directory:
+
+```
+.orchestrator/
+  config.json                  # Project configuration
+  progress.txt                 # Progress tracking across sessions
+  database/orchestrator.db     # Session history (SQLite, gitignored)
+  implementation.md            # Custom implementation prompt (optional)
+  verification.md              # Custom verification prompt (optional)
+  fix.md                       # Custom fix prompt (optional)
+```
+
+The instructions file (`ORCHESTRATOR.md`) stays in the project root alongside other agent instruction files (`CLAUDE.md`, `AGENTS.md`).
+
+### .orchestrator/config.json
 
 Created by `npx agent-orchestrator init`. Key fields:
 
@@ -150,7 +163,7 @@ Created by `npx agent-orchestrator init`. Key fields:
   "projectName": "my-app",
   "baseBranch": "ai-develop",
   "featuresFile": "features.json",
-  "progressFile": "orchestrator-progress.txt",
+  "progressFile": ".orchestrator/progress.txt",
   "instructionsFile": "ORCHESTRATOR.md",
   "appUrl": "http://localhost:3000",
 
@@ -175,6 +188,12 @@ Created by `npx agent-orchestrator init`. Key fields:
   "verification": {
     "maxAttempts": 3,
     "disabled": false
+  },
+
+  "browser": {
+    "enabled": false,
+    "mcpPackage": "chrome-devtools-mcp@latest",
+    "mcpServerName": "chrome-devtools"
   }
 }
 ```
@@ -235,11 +254,13 @@ This means you can keep your agent-specific files for interactive development an
 
 ### Custom prompts
 
-Create files in a `prompts/` directory in your project root to customize agent instructions:
+Create files in the `.orchestrator/` directory in your project root to customize agent instructions:
 
-- `prompts/implementation.md` — Used when implementing a feature
-- `prompts/verification.md` — Used when verifying a feature
-- `prompts/fix.md` — Used when fixing a failed verification
+- `.orchestrator/implementation.md` — Used when implementing a feature
+- `.orchestrator/verification.md` — Used when verifying a feature
+- `.orchestrator/fix.md` — Used when fixing a failed verification
+
+These override the built-in prompts entirely. You can also set prompt templates inline in the config via the dashboard Settings page.
 
 ## Architecture
 
@@ -265,7 +286,7 @@ Create files in a `prompts/` directory in your project root to customize agent i
 │  └──────────────────────────────────────────┘   │
 │  ┌───────────────┐  ┌───────────────────────┐   │
 │  │ Feature Store │  │  Session DB (SQLite)  │   │
-│  │(features.json)│  │                       │   │
+│  │(features.json)│  │ .orchestrator/database│   │
 │  └───────────────┘  └───────────────────────┘   │
 └─────────────────────────────────────────────────┘
 ```
@@ -311,10 +332,14 @@ Once implementation succeeds, the orchestrator:
 
 This verification agent gets a different prompt:
 - **Do not modify any source code**, only observe and report
-- Verify using Bash commands: curl API calls, CLI commands, database queries, running tests
-- Report `STEP N: PASS/FAIL` for each acceptance step from `features.json`
+- Verify each acceptance step from `features.json`
+- Report `STEP N: PASS/FAIL` for each step
 
 The verification agent has restricted tools: `Bash`, `Read`, `Write` only (no `Edit`), so it can't accidentally modify your code.
+
+**CLI verification** (default): The agent uses Bash commands — curl API calls, CLI commands, database queries, running tests.
+
+**Browser verification** (opt-in): When `browser.enabled` is `true`, the agent also gets access to Chrome DevTools MCP tools — navigate pages, click buttons, fill forms, type text, take screenshots, and evaluate JavaScript. This is useful for verifying UI features that can't be checked with CLI alone. See [Browser verification](#browser-verification) below.
 
 If all steps pass, the feature is marked as **passed**. If any step fails, the fix phase kicks in.
 
@@ -328,6 +353,39 @@ When verification fails and attempts remain (`verification.maxAttempts`, default
 4. Verification runs again
 
 This loop repeats until either all steps pass or max attempts are exhausted. If the feature still fails after all attempts, it's marked as **failed**, but the code stays on the branch for manual review.
+
+### Browser verification
+
+When enabled, the verification agent gets Chrome DevTools MCP tools in addition to the standard CLI tools. This allows it to interact with your app like a real user: navigate to pages, click elements, fill forms, take screenshots, and evaluate JavaScript in the browser console.
+
+**Setup:**
+
+1. Enable during `npx agent-orchestrator init` (or set `browser.enabled` to `true` in the config)
+2. On first start, the orchestrator checks if the Chrome DevTools MCP server is registered with each configured agent (preferred + fallbacks)
+3. If missing, it prompts you to install it automatically (runs `<agent> mcp add chrome-devtools ...`)
+4. Have Chrome or Chromium running during orchestrator runs
+
+**Configuration:**
+
+```json
+{
+  "browser": {
+    "enabled": true,
+    "mcpPackage": "chrome-devtools-mcp@latest",
+    "mcpArgs": ["--no-performance-crux", "--no-usage-statistics"],
+    "mcpServerName": "chrome-devtools"
+  }
+}
+```
+
+| Setting               | Default                      | Description                                     |
+|-----------------------|------------------------------|-------------------------------------------------|
+| `browser.enabled`     | `false`                      | Enable browser-based verification               |
+| `browser.mcpPackage`  | `chrome-devtools-mcp@latest` | npm package for the Chrome DevTools MCP server   |
+| `browser.mcpArgs`     | `["--no-performance-crux", "--no-usage-statistics"]` | Extra args passed to the MCP server |
+| `browser.mcpServerName` | `chrome-devtools`          | MCP server name registered with the agent CLI   |
+
+If features require authentication, include login credentials and steps in your feature's `steps` array so the verification agent can log in before checking authenticated pages.
 
 ### Verification configuration
 

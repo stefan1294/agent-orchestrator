@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from 'fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import { logger } from '../utils/logger.js';
 
@@ -84,6 +84,7 @@ export interface ProjectConfig {
   instructionsFile: string;
   appUrl: string;
 
+  tracksConfigured: boolean;
   tracks: TrackDefinition[];
   worktree: WorktreeConfig;
   criticalPatterns: CriticalPattern[];
@@ -99,18 +100,19 @@ const DEFAULT_CONFIG: ProjectConfig = {
   projectName: '',
   baseBranch: 'ai-develop',
   featuresFile: 'features.json',
-  progressFile: 'orchestrator-progress.txt',
+  progressFile: '.orchestrator/progress.txt',
   instructionsFile: 'ORCHESTRATOR.md',
   appUrl: '',
 
+  tracksConfigured: false,
   tracks: [
-    { name: 'track-1', categories: [], color: '#8b5cf6', isDefault: true },
+    { name: 'default', categories: [], color: '#8b5cf6', isDefault: true },
   ],
 
   worktree: {
     symlinkDirs: ['node_modules'],
     copyFiles: ['.mcp.json', '.env'],
-    preserveFiles: ['features.json', 'orchestrator-progress.txt'],
+    preserveFiles: ['features.json', '.orchestrator/progress.txt'],
     setupScript: null,
     setupScriptName: 'run-worktree',
     dockerService: null,
@@ -162,7 +164,7 @@ const DEFAULT_CONFIG: ProjectConfig = {
 
 // ─── Config File Name ────────────────────────────────────────────
 
-export const CONFIG_FILE_NAME = 'orchestrator.config.json';
+export const CONFIG_FILE_NAME = '.orchestrator/config.json';
 
 // ─── Deep Merge ──────────────────────────────────────────────────
 
@@ -192,6 +194,7 @@ function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>)
 
 export async function loadProjectConfig(projectRoot: string): Promise<ProjectConfig> {
   const configPath = path.join(projectRoot, CONFIG_FILE_NAME);
+  await mkdir(path.dirname(configPath), { recursive: true });
 
   try {
     await stat(configPath);
@@ -220,6 +223,7 @@ export class ConfigNotFoundError extends Error {
 
 export async function saveProjectConfig(projectRoot: string, config: ProjectConfig): Promise<void> {
   const configPath = path.join(projectRoot, CONFIG_FILE_NAME);
+  await mkdir(path.dirname(configPath), { recursive: true });
   await writeFile(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   logger.info(`Saved project config to ${CONFIG_FILE_NAME}`);
 }

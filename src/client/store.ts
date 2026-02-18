@@ -16,6 +16,7 @@ interface OrchestratorStore {
   status: OrchestratorStatus;
   liveOutput: Map<string, AgentMessage[]>; // sessionId -> messages
   criticalAlerts: CriticalAlert[];
+  newCategories: string[];
 
   // Actions
   setFeatures: (features: Feature[]) => void;
@@ -28,6 +29,8 @@ interface OrchestratorStore {
   clearLiveOutput: (sessionId: string) => void;
   addCriticalAlert: (alert: CriticalAlert) => void;
   dismissCriticalAlert: (index: number) => void;
+  setNewCategories: (cats: string[]) => void;
+  clearNewCategories: () => void;
 }
 
 export const useStore = create<OrchestratorStore>((set) => ({
@@ -36,6 +39,7 @@ export const useStore = create<OrchestratorStore>((set) => ({
   status: { state: 'stopped', tracks: [], startedAt: null },
   liveOutput: new Map(),
   criticalAlerts: [],
+  newCategories: [],
 
   setFeatures: (features) => set({ features }),
 
@@ -75,4 +79,7 @@ export const useStore = create<OrchestratorStore>((set) => ({
   dismissCriticalAlert: (index) => set((state) => ({
     criticalAlerts: state.criticalAlerts.filter((_, i) => i !== index),
   })),
+
+  setNewCategories: (cats) => set({ newCategories: cats }),
+  clearNewCategories: () => set({ newCategories: [] }),
 }));

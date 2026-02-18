@@ -48,7 +48,7 @@ export interface TrackStatus {
 }
 
 export interface OrchestratorStatus {
-  state: 'stopped' | 'running' | 'stopping';
+  state: 'stopped' | 'running' | 'stopping' | 'setup';
   tracks: TrackStatus[];
   startedAt: string | null;
   resume?: {
@@ -56,9 +56,11 @@ export interface OrchestratorStatus {
     track: string;
     requestedAt: string;
   } | null;
+  detectedCategories?: string[];
+  newCategories?: string[];
 }
 
-export type OrchestratorState = 'stopped' | 'running' | 'stopping';
+export type OrchestratorState = 'stopped' | 'running' | 'stopping' | 'setup';
 
 export interface AgentMessage {
   type: string;

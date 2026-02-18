@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Nav from './components/Nav';
-import { fetchProject } from './hooks/useApi';
 import { useSocket } from './hooks/useSocket';
 import Agents from './pages/Agents';
 import Dashboard from './pages/Dashboard';
 import Features from './pages/Features';
-import ProjectSetup from './pages/ProjectSetup';
 import SessionDetail from './pages/SessionDetail';
 import Settings from './pages/Settings';
+import Tracks from './pages/Tracks';
 import { useStore } from './store';
 
 export default function App() {
@@ -16,28 +14,6 @@ export default function App() {
   const location = useLocation();
   const criticalAlerts = useStore((s) => s.criticalAlerts);
   const dismissCriticalAlert = useStore((s) => s.dismissCriticalAlert);
-
-  const [projectConfigured, setProjectConfigured] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    fetchProject()
-      .then((status) => setProjectConfigured(status.configured))
-      .catch(() => setProjectConfigured(false));
-  }, []);
-
-  // Still loading project status
-  if (projectConfigured === null) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-500 text-sm">Loading...</div>
-      </div>
-    );
-  }
-
-  // No project configured — show setup page
-  if (!projectConfigured) {
-    return <ProjectSetup onConfigured={() => setProjectConfigured(true)} />;
-  }
 
   // Agents page uses full width, others are constrained
   const isAgentsPage = location.pathname === '/agents';
@@ -48,7 +24,7 @@ export default function App() {
 
       {/* Critical failure alerts */}
       {criticalAlerts.length > 0 && (
-        <div className="fixed top-16 left-0 right-0 z-40 px-4 py-2 space-y-2">
+        <div className="fixed top-[72px] left-0 right-0 z-40 px-4 py-2 space-y-2">
           {criticalAlerts.map((alert, i) => (
             <div
               key={i}
@@ -75,12 +51,13 @@ export default function App() {
         </div>
       )}
 
-      <main className={`pt-16 px-6 pb-8 ${isAgentsPage ? '' : 'max-w-7xl mx-auto'}`}>
+      <main className={`pt-20 px-6 pb-8 ${isAgentsPage ? '' : 'max-w-7xl mx-auto'}`}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/features" element={<Features />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
+          <Route path="/tracks" element={<Tracks />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

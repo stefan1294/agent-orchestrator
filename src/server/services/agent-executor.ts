@@ -260,12 +260,12 @@ export class AgentExecutor {
    */
   private async resolvePromptTemplate(type: 'implementation' | 'verification' | 'fix', builtinDefault: string): Promise<string> {
     // 1. Check for prompt file
-    const promptFile = path.join(this.projectRoot, 'prompts', `${type}.md`);
+    const promptFile = path.join(this.projectRoot, '.orchestrator', `${type}.md`);
     try {
       await stat(promptFile);
       const content = await readFile(promptFile, 'utf-8');
       if (content.trim()) {
-        logger.debug(`Using prompt file: prompts/${type}.md`);
+        logger.debug(`Using prompt file: .orchestrator/${type}.md`);
         return content;
       }
     } catch {

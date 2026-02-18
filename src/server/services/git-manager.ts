@@ -35,13 +35,15 @@ export class GitManager {
     return this.config.worktree.preserveFiles;
   }
 
-  private async execGit(cmd: string, cwd?: string): Promise<string> {
+  private async execGit(cmd: string, cwd?: string, quiet = false): Promise<string> {
     const workDir = cwd || this.projectRoot;
     try {
       const { stdout } = await exec(cmd, { cwd: workDir });
       return stdout.trim();
     } catch (error) {
-      logger.error(`Git command failed: ${cmd} (cwd: ${workDir})`, error);
+      if (!quiet) {
+        logger.error(`Git command failed: ${cmd} (cwd: ${workDir})`, error);
+      }
       throw error;
     }
   }
@@ -365,7 +367,7 @@ export class GitManager {
   async getBranchStatus(branch: string, worktreePath: string): Promise<{ aheadCount: number; clean: boolean }> {
     await this.gitMutex.acquire();
     try {
-      await this.execGit(`git rev-parse --verify ${branch}`);
+      await this.execGit(`git rev-parse --verify ${branch}`, undefined, true);
       const baseBranch = this.config.baseBranch;
       const aheadRaw = await this.execGit(`git rev-list --count ${baseBranch}..${branch}`);
       const aheadCount = Number.parseInt(aheadRaw, 10) || 0;
@@ -496,7 +498,7 @@ export class GitManager {
 
   private async branchExistsUnsafe(branch: string): Promise<boolean> {
     try {
-      await this.execGit(`git rev-parse --verify ${branch}`);
+      await this.execGit(`git rev-parse --verify ${branch}`, undefined, true);
       return true;
     } catch {
       return false;
@@ -506,13 +508,13 @@ export class GitManager {
   private async removeWorktreeUnsafe(track: string): Promise<void> {
     const worktreePath = path.join(this.worktreesDir, track);
     try {
-      await this.execGit(`git worktree remove "${worktreePath}" --force`);
+      await this.execGit(`git worktree remove "${worktreePath}" --force`, undefined, true);
       logger.debug(`Removed worktree at ${worktreePath}`);
     } catch {
       // Worktree doesn't exist — that's fine
     }
     try {
-      await this.execGit('git worktree prune');
+      await this.execGit('git worktree prune', undefined, true);
     } catch { /* ignore */ }
   }
 }

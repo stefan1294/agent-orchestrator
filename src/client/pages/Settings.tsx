@@ -1,7 +1,10 @@
-import { ChevronDown, ChevronRight, Info, RotateCcw, Save } from 'lucide-react';
+import { ChevronDown, ChevronRight, Info, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { fetchSettings, updateSettings } from '../hooks/useApi';
 import type { SettingDefinition } from '../types';
+
+// Groups to hide from the settings UI
+const HIDDEN_GROUPS = new Set(['Tracks', 'Prompts']);
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
@@ -10,6 +13,7 @@ export default function Settings() {
   const [success, setSuccess] = useState<string | null>(null);
   const [settings, setSettings] = useState<SettingDefinition[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [savedValues, setSavedValues] = useState<Record<string, string>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -24,6 +28,7 @@ export default function Settings() {
           vals[s.key] = s.value;
         }
         setValues(vals);
+        setSavedValues(vals);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load settings');
       } finally {
@@ -38,8 +43,8 @@ export default function Settings() {
     setSuccess(null);
   };
 
-  const handleReset = (setting: SettingDefinition) => {
-    handleChange(setting.key, setting.defaultValue);
+  const handleReset = (key: string) => {
+    handleChange(key, savedValues[key]);
   };
 
   const handleSave = async () => {
@@ -54,6 +59,7 @@ export default function Settings() {
         vals[s.key] = s.value;
       }
       setValues(vals);
+      setSavedValues(vals);
       setSuccess('Settings saved successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
@@ -74,10 +80,11 @@ export default function Settings() {
     });
   };
 
-  // Group settings by group name, preserving order
+  // Group settings by group name, preserving order; skip hidden groups
   const groupOrder: string[] = [];
   const groups: Record<string, SettingDefinition[]> = {};
   for (const s of settings) {
+    if (HIDDEN_GROUPS.has(s.group)) continue;
     if (!groups[s.group]) {
       groups[s.group] = [];
       groupOrder.push(s.group);
@@ -85,9 +92,13 @@ export default function Settings() {
     groups[s.group].push(s);
   }
 
-  const isModified = (setting: SettingDefinition) => {
-    return values[setting.key] !== setting.defaultValue;
+  const isModified = (key: string) => {
+    return values[key] !== savedValues[key];
   };
+
+  const hasUnsavedChanges = Object.keys(savedValues).some(
+    (key) => values[key] !== savedValues[key]
+  );
 
   if (loading) {
     return (
@@ -98,18 +109,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white">Settings</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
-      </div>
+    <div className="space-y-6 pb-20">
+      <h1 className="text-3xl font-bold text-white">Settings</h1>
 
       {error && (
         <div className="p-4 bg-red-950 text-red-200 rounded-lg border border-red-800">
@@ -125,7 +126,7 @@ export default function Settings() {
 
       <p className="text-gray-400 text-sm">
         Configure orchestrator behavior. All settings are saved to{' '}
-        <code className="text-gray-300">orchestrator.config.json</code> in the project directory.
+        <code className="text-gray-300">.orchestrator/config.json</code> in the project directory.
       </p>
 
       {groupOrder.map((groupName) => {
@@ -156,8 +157,8 @@ export default function Settings() {
                     setting={setting}
                     value={values[setting.key] ?? setting.defaultValue}
                     onChange={(val) => handleChange(setting.key, val)}
-                    onReset={() => handleReset(setting)}
-                    modified={isModified(setting)}
+                    onReset={() => handleReset(setting.key)}
+                    modified={isModified(setting.key)}
                   />
                 ))}
               </div>
@@ -165,6 +166,22 @@ export default function Settings() {
           </div>
         );
       })}
+
+      {/* Sticky save footer */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 px-6 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="text-gray-400 text-sm">You have unsaved changes</span>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -199,7 +216,7 @@ function SettingRow({
               <button
                 onClick={onReset}
                 className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
-                title="Reset to default"
+                title="Undo change"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>

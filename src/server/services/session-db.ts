@@ -1,4 +1,4 @@
-import { mkdir } from 'fs/promises';
+import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import Database from 'better-sqlite3';
 
@@ -37,13 +37,12 @@ export class SessionDB {
   private db: Database.Database;
 
   constructor(dbPath: string) {
+    mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
   }
 
   async initDatabase(): Promise<void> {
-    const dbDir = dirname(this.db.name);
-    await mkdir(dbDir, { recursive: true });
 
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS sessions (
@@ -69,7 +68,7 @@ export class SessionDB {
 
     this.db.exec(createTableSQL);
 
-    // Legacy settings table removed — all config is now in orchestrator.config.json
+    // Legacy settings table removed — all config is now in .orchestrator/config.json
   }
 
   createSession(session: Omit<Session, 'created_at'>): void {

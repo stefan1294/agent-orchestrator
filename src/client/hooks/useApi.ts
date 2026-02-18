@@ -1,4 +1,4 @@
-import type { Feature, Session, OrchestratorStatus, SettingDefinition, TrackDefinition, ProjectStatus } from '../types';
+import type { Feature, Session, OrchestratorStatus, SettingDefinition, TrackDefinition } from '../types';
 
 const API_BASE = '/api';
 
@@ -77,21 +77,16 @@ export async function updateSettings(settings: Record<string, string>): Promise<
   return data.settings ?? [];
 }
 
+export async function configureTracks(tracks: TrackDefinition[]): Promise<void> {
+  await apiRequest(`${API_BASE}/tracks/configure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tracks }),
+  });
+}
+
 export async function fetchConfig(): Promise<{ projectName: string; tracks: TrackDefinition[] }> {
   const res = await apiRequest(`${API_BASE}/config`);
   return res.json();
 }
 
-export async function fetchProject(): Promise<ProjectStatus> {
-  const res = await apiRequest(`${API_BASE}/project`);
-  return res.json();
-}
-
-export async function setProject(projectRoot: string): Promise<ProjectStatus> {
-  const res = await apiRequest(`${API_BASE}/project`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projectRoot }),
-  });
-  return res.json();
-}

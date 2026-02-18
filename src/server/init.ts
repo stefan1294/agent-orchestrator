@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { exec as execCb } from 'child_process';
+import { readFile, stat, writeFile, appendFile } from 'fs/promises';
 import path from 'path';
 import * as readline from 'readline';
 import { promisify } from 'util';
-import { getDefaultConfig, saveProjectConfig, type ProjectConfig, type TrackDefinition } from './services/project-config.js';
+import { getDefaultConfig, saveProjectConfig, type ProjectConfig } from './services/project-config.js';
 import { detectProject } from './services/project-detector.js';
 
 const exec = promisify(execCb);
@@ -124,49 +125,13 @@ async function main(): Promise<void> {
 
   config.featuresFile = await ask('Features file', config.featuresFile);
   config.instructionsFile = await ask('Instructions file for the orchestrator', config.instructionsFile);
-  config.appUrl = await ask('App URL for verification (e.g., http://localhost:3000)', config.appUrl);
+  config.appUrl = await ask('App URL (used for testing features after merge)', config.appUrl);
 
-  // Step 3: Track configuration
-  heading('Track Configuration');
-  log('\nTracks allow parallel feature processing. Each track runs independently.');
-  log('Features are routed to tracks based on their category.\n');
+  // Tracks are configured in the dashboard on first start (not during init).
+  // Keep a single default track; tracksConfigured stays false.
+  config.tracks = [{ name: 'default', categories: [], color: '#8b5cf6', isDefault: true }];
 
-  const trackCountStr = await ask('How many parallel tracks?', '2');
-  const trackCount = Math.max(1, Math.min(5, parseInt(trackCountStr, 10) || 2));
-
-  const tracks: TrackDefinition[] = [];
-  const defaultColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
-
-  for (let i = 0; i < trackCount; i++) {
-    log(`\n--- Track ${i + 1} of ${trackCount} ---`);
-    const defaultName = i === 0 && trackCount > 1 ? 'marketing' : i === 0 ? 'main' : i === 1 ? 'core' : `track-${i + 1}`;
-    const name = await ask('Track name', defaultName);
-    const categoriesStr = await ask(
-      'Feature categories for this track (comma-separated, empty for catch-all)',
-      i === 0 && trackCount > 1 ? name : ''
-    );
-    const categories = categoriesStr
-      .split(',')
-      .map((c) => c.trim())
-      .filter(Boolean);
-    const isDefault = categories.length === 0 || i === trackCount - 1;
-
-    tracks.push({
-      name,
-      categories,
-      color: defaultColors[i % defaultColors.length],
-      isDefault,
-    });
-  }
-
-  // Ensure at least one track is marked as default
-  if (!tracks.some((t) => t.isDefault)) {
-    tracks[tracks.length - 1].isDefault = true;
-  }
-
-  config.tracks = tracks;
-
-  // Step 4: Worktree settings (confirm Docker detection)
+  // Step 3: Worktree settings (confirm Docker detection)
   heading('Worktree Settings');
 
   if (config.worktree.dockerService) {
@@ -193,13 +158,15 @@ async function main(): Promise<void> {
   config.agent.preferred = (['claude', 'codex', 'gemini'].includes(preferred) ? preferred : 'claude') as 'claude' | 'codex' | 'gemini';
 
   const fallbackStr = await ask(
-    'Fallback agents on rate limit (comma-separated, or empty to disable)',
-    config.agent.fallbackAgents.join(',')
+    'Fallback agents on rate limit (comma-separated, or "none" to disable)',
+    config.agent.fallbackAgents.length > 0 ? config.agent.fallbackAgents.join(',') : 'none'
   );
-  config.agent.fallbackAgents = fallbackStr
-    .split(',')
-    .map((a) => a.trim())
-    .filter((a) => ['claude', 'codex', 'gemini'].includes(a) && a !== config.agent.preferred);
+  config.agent.fallbackAgents = fallbackStr.toLowerCase() === 'none'
+    ? []
+    : fallbackStr
+        .split(',')
+        .map((a) => a.trim())
+        .filter((a) => ['claude', 'codex', 'gemini'].includes(a) && a !== config.agent.preferred);
 
   // Step 6: Browser verification
   heading('Browser Verification');
@@ -220,7 +187,7 @@ async function main(): Promise<void> {
   log(`\n  Project:     ${config.projectName}`);
   log(`  Framework:   ${detection.framework}`);
   log(`  Base branch: ${config.baseBranch}`);
-  log(`  Tracks:      ${config.tracks.map((t) => t.name).join(', ')}`);
+  log(`  Tracks:      (configured in dashboard on first start)`);
   log(`  App URL:     ${config.appUrl || '(not set)'}`);
   log(`  Docker:      ${config.worktree.dockerService || 'none'}`);
   log(`  Symlinks:    ${config.worktree.symlinkDirs.join(', ') || 'none'}`);
@@ -228,18 +195,43 @@ async function main(): Promise<void> {
   log(`  Fallbacks:   ${config.agent.fallbackAgents.length > 0 ? config.agent.fallbackAgents.join(', ') : 'none (will wait on rate limit)'}`);
   log(`  Browser:     ${config.browser.enabled ? 'enabled' : 'disabled'}`);
 
-  const confirm = await ask('\nSave orchestrator.config.json? (y/n)', 'y');
+  const confirm = await ask('\nSave .orchestrator/config.json? (y/n)', 'y');
   if (confirm.toLowerCase() === 'y') {
     await saveProjectConfig(projectRoot, config);
-    log('\nSaved orchestrator.config.json');
+    log('\nSaved .orchestrator/config.json');
+
+    // Ensure .orchestrator/database/ is in the project's .gitignore
+    const gitignorePath = path.join(projectRoot, '.gitignore');
+    const gitignoreEntry = '.orchestrator/database/';
+    let gitignoreExists = false;
+    try {
+      await stat(gitignorePath);
+      gitignoreExists = true;
+    } catch { /* doesn't exist */ }
+
+    if (gitignoreExists) {
+      const content = await readFile(gitignorePath, 'utf-8');
+      if (!content.includes(gitignoreEntry)) {
+        const separator = content.endsWith('\n') ? '' : '\n';
+        await appendFile(gitignorePath, `${separator}${gitignoreEntry}\n`, 'utf-8');
+        log(`  Added '${gitignoreEntry}' to .gitignore`);
+      }
+    } else {
+      const createIt = await ask('.gitignore not found. Create one with orchestrator database entry? (y/n)', 'y');
+      if (createIt.toLowerCase() === 'y') {
+        await writeFile(gitignorePath, `${gitignoreEntry}\n`, 'utf-8');
+        log(`  Created .gitignore with '${gitignoreEntry}'`);
+      }
+    }
+
     log('\nNext steps:');
     log('  1. Create a features.json file (see examples/features.example.json)');
     log('  2. Start the orchestrator:');
     log('     npx agent-orchestrator start');
-    log('\nTo customize prompts, create files in prompts/ directory:');
-    log('  prompts/implementation.md');
-    log('  prompts/verification.md');
-    log('  prompts/fix.md');
+    log('\nTo customize prompts, create files in the .orchestrator/ directory:');
+    log('  .orchestrator/implementation.md');
+    log('  .orchestrator/verification.md');
+    log('  .orchestrator/fix.md');
   } else {
     log('\nAborted. No files were created.');
   }

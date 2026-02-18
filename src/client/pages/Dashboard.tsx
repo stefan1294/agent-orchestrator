@@ -1,9 +1,12 @@
+import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import ResumeDialog from '../components/ResumeDialog';
 import RetryDialog from '../components/RetryDialog';
 import StatsBanner from '../components/StatsBanner';
 import TrackPanel from '../components/TrackPanel';
-import { fetchFeatures, fetchStatus, fetchConfig, retryFeature, resumeFeature } from '../hooks/useApi';
+import TrackSetup from '../components/TrackSetup';
+import { fetchFeatures, fetchStatus, fetchConfig, retryFeature, resumeFeature, configureTracks } from '../hooks/useApi';
 import { useStore } from '../store';
 import type { Feature, TrackDefinition } from '../types';
 
@@ -14,7 +17,7 @@ export default function Dashboard() {
   const [selectedResumeFeature, setSelectedResumeFeature] = useState<Feature | null>(null);
   const [trackDefinitions, setTrackDefinitions] = useState<TrackDefinition[]>([]);
 
-  const { features, status, setFeatures, setStatus } = useStore();
+  const { features, status, setFeatures, setStatus, newCategories, clearNewCategories } = useStore();
 
   useEffect(() => {
     const loadData = async () => {
@@ -106,10 +109,41 @@ export default function Dashboard() {
           ? 'grid-cols-3'
           : 'grid-cols-2';
 
+  const handleConfigureTracks = async (tracks: TrackDefinition[]) => {
+    try {
+      setError(null);
+      await configureTracks(tracks);
+      // Refetch status — orchestrator transitions to 'running'
+      const [statusData, configData] = await Promise.all([fetchStatus(), fetchConfig()]);
+      setStatus(statusData);
+      setTrackDefinitions(configData.tracks || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to configure tracks');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-gray-400">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  // Setup state: show track configuration instead of normal dashboard
+  if (status.state === 'setup') {
+    return (
+      <div className="space-y-8">
+        {error && (
+          <div className="p-4 bg-red-950 text-red-200 rounded-lg border border-red-800">
+            {error}
+          </div>
+        )}
+        <TrackSetup
+          detectedCategories={status.detectedCategories || []}
+          onSave={handleConfigureTracks}
+          saveLabel="Save & Start"
+        />
       </div>
     );
   }
@@ -122,6 +156,19 @@ export default function Dashboard() {
         </div>
       )}
 
+      {newCategories.length > 0 && (
+        <div className="p-4 bg-amber-950/40 text-amber-200 rounded-lg border border-amber-900 flex items-start justify-between gap-4">
+          <div>
+            New categories detected: <span className="font-medium">{newCategories.join(', ')}</span>.
+            They'll be processed by the default track.{' '}
+            <Link to="/tracks" className="underline hover:text-amber-100">Configure tracks</Link>
+          </div>
+          <button onClick={clearNewCategories} className="text-amber-400 hover:text-amber-200 flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {status.resume && (
         <div className="p-4 bg-blue-950/40 text-blue-200 rounded-lg border border-blue-900">
           Resume in progress: Feature #{status.resume.featureId} is prioritized on the {status.resume.track} track.
@@ -130,6 +177,13 @@ export default function Dashboard() {
       )}
 
       <StatsBanner />
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white">Tracks</h2>
+        <Link to="/tracks" className="text-sm text-gray-400 hover:text-white transition-colors">
+          Configure tracks
+        </Link>
+      </div>
 
       <div className={`grid ${gridCols} gap-6`}>
         {trackData.map(({ def, features: trackFeatures, trackStatus }) => (

@@ -68,15 +68,22 @@ function buildInstallCommand(agent: AgentName, config: ProjectConfig): string {
 
 /**
  * Attempt to install the MCP server for a given agent, prompting the user first.
+ * In non-interactive mode (web UI), only checks — never prompts or installs.
  * Returns true if the MCP is installed after this function completes.
  */
-async function ensureMcpForAgent(agent: AgentName, config: ProjectConfig): Promise<boolean> {
+async function ensureMcpForAgent(agent: AgentName, config: ProjectConfig, interactive: boolean): Promise<boolean> {
   const serverName = config.browser.mcpServerName;
 
   // Check if already installed
   if (await isMcpInstalled(agent, serverName, config)) {
     logger.info(`Chrome DevTools MCP already installed for ${agent}`);
     return true;
+  }
+
+  // Non-interactive: just report missing, don't prompt
+  if (!interactive) {
+    logger.warn(`Chrome DevTools MCP is not installed for ${agent}. Install it via CLI: npx agent-orchestrator start`);
+    return false;
   }
 
   // Prompt user
@@ -110,10 +117,13 @@ async function ensureMcpForAgent(agent: AgentName, config: ProjectConfig): Promi
  * For each active agent (preferred + fallbacks), checks if the Chrome DevTools
  * MCP server is registered and offers to install it if missing.
  *
+ * @param interactive - When true (CLI), prompts user to install missing MCP.
+ *                      When false (web UI), only checks and reports.
+ *
  * Returns true if ALL configured agents have the MCP installed.
  * Returns false if any agent is missing it (since any agent could be used for verification).
  */
-export async function runBrowserPreflight(config: ProjectConfig): Promise<boolean> {
+export async function runBrowserPreflight(config: ProjectConfig, interactive = false): Promise<boolean> {
   const agents: AgentName[] = [config.agent.preferred];
 
   for (const fallback of config.agent.fallbackAgents) {
@@ -125,7 +135,7 @@ export async function runBrowserPreflight(config: ProjectConfig): Promise<boolea
   let allInstalled = true;
 
   for (const agent of agents) {
-    const installed = await ensureMcpForAgent(agent, config);
+    const installed = await ensureMcpForAgent(agent, config, interactive);
     if (!installed) {
       allInstalled = false;
     }
