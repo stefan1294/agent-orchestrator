@@ -1,6 +1,6 @@
 {
   "name": "agent-orchestrator",
-  "version": "1.0.0",
+  "version": "1.0.0-beta.1",
   "description": "Multi-track orchestration tool that parallelizes AI coding agents (Claude, Codex) across git worktrees",
   "type": "module",
   "bin": {
