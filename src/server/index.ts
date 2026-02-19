@@ -12,8 +12,8 @@ import { createResumeRouter } from './api/resume.js';
 import { createRetryRouter } from './api/retry.js';
 import { createSessionsRouter } from './api/sessions.js';
 import { createSettingsRouter } from './api/settings.js';
+import { addBrowserMcpToProject, removeBrowserMcpFromProject } from './services/mcp-config.js';
 import { Orchestrator } from './services/orchestrator.js';
-import { runBrowserPreflight } from './services/browser-preflight.js';
 import { loadProjectConfig } from './services/project-config.js';
 import { logger } from './utils/logger.js';
 
@@ -38,15 +38,12 @@ try {
   process.exit(1);
 }
 
-// ─── Browser verification preflight (interactive, runs in terminal) ──
+// ─── Sync .mcp.json with browser verification setting ────────────
 
 if (config.browser.enabled) {
-  logger.info('Browser verification enabled — checking MCP installation...');
-  const preflightOk = await runBrowserPreflight(config, true);
-  if (!preflightOk) {
-    logger.warn('Chrome DevTools MCP not installed for all agents — disabling browser verification.');
-    config.browser.enabled = false;
-  }
+  await addBrowserMcpToProject(projectRoot, config);
+} else {
+  await removeBrowserMcpFromProject(projectRoot, config);
 }
 
 // ─── Express + Socket.IO setup ───────────────────────────────────

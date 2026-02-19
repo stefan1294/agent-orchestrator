@@ -5,6 +5,7 @@ import { readFile, stat, writeFile, appendFile } from 'fs/promises';
 import path from 'path';
 import * as readline from 'readline';
 import { promisify } from 'util';
+import { addBrowserMcpToProject } from './services/mcp-config.js';
 import { getDefaultConfig, saveProjectConfig, type ProjectConfig } from './services/project-config.js';
 import { detectProject } from './services/project-detector.js';
 
@@ -199,6 +200,12 @@ async function main(): Promise<void> {
   if (confirm.toLowerCase() === 'y') {
     await saveProjectConfig(projectRoot, config);
     log('\nSaved .orchestrator/config.json');
+
+    // Write .mcp.json if browser verification is enabled
+    if (config.browser.enabled) {
+      await addBrowserMcpToProject(projectRoot, config);
+      log('  Created .mcp.json with Chrome DevTools MCP entry');
+    }
 
     // Ensure .orchestrator/database/ is in the project's .gitignore
     const gitignorePath = path.join(projectRoot, '.gitignore');

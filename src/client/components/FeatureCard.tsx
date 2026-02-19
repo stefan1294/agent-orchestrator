@@ -1,5 +1,6 @@
 import { CheckCircle2, XCircle, Circle, RotateCcw, FastForward } from 'lucide-react';
 import React from 'react';
+import { Link } from 'react-router-dom';
 import type { Feature } from '../types';
 
 interface Props {
@@ -51,7 +52,13 @@ const FeatureCard: React.FC<Props> = ({
       <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
         {getStatusIcon()}
         <div className="flex-1 min-w-0">
-          <p className="text-white font-medium truncate">{feature.name}</p>
+          {feature.latestSession ? (
+            <Link to={`/sessions/${feature.latestSession.id}`} className="text-white font-medium truncate block hover:text-blue-400 hover:underline">
+              {feature.name}
+            </Link>
+          ) : (
+            <p className="text-white font-medium truncate">{feature.name}</p>
+          )}
         </div>
         {feature.category && (
           <span className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded whitespace-nowrap">
@@ -88,7 +95,13 @@ const FeatureCard: React.FC<Props> = ({
       <div className="flex items-start gap-3 mb-2">
         {getStatusIcon()}
         <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-lg truncate">{feature.name}</p>
+          {feature.latestSession ? (
+            <Link to={`/sessions/${feature.latestSession.id}`} className="text-white font-semibold text-lg truncate block hover:text-blue-400 hover:underline">
+              {feature.name}
+            </Link>
+          ) : (
+            <p className="text-white font-semibold text-lg truncate">{feature.name}</p>
+          )}
           {feature.description && (
             <p className="text-gray-400 text-sm line-clamp-2 mt-1">{feature.description}</p>
           )}

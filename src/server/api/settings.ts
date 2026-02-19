@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { addBrowserMcpToProject, removeBrowserMcpFromProject } from '../services/mcp-config.js';
 import type { Orchestrator } from '../services/orchestrator.js';
 import { saveProjectConfig } from '../services/project-config.js';
 
@@ -320,7 +321,7 @@ const SETTINGS_SCHEMA: SettingSchema[] = [
     defaultValue: 'false',
     group: 'Browser Verification',
     description: 'Enable Chrome DevTools MCP for browser-based verification. When enabled, verification agents can navigate pages, click elements, fill forms, and take screenshots.',
-    recommendation: 'Requires the Chrome DevTools MCP server to be installed for your agents. The orchestrator will prompt you to install it on first start.',
+    recommendation: 'When enabled, the orchestrator manages a .mcp.json file in the project root with the Chrome DevTools MCP entry.',
   },
 ];
 
@@ -419,6 +420,20 @@ export function createSettingsRouter(orchestrator: Orchestrator): Router {
       console.error('Failed to save config file:', err);
       res.status(500).json({ error: 'Failed to save config file' });
       return;
+    }
+
+    // Sync .mcp.json when browser.enabled changes
+    if ('browser.enabled' in settings) {
+      const projectRoot = orchestrator.getProjectRoot();
+      try {
+        if (config.browser.enabled) {
+          await addBrowserMcpToProject(projectRoot, config);
+        } else {
+          await removeBrowserMcpFromProject(projectRoot, config);
+        }
+      } catch (err) {
+        console.error('Failed to update .mcp.json:', err);
+      }
     }
 
     // Return updated settings

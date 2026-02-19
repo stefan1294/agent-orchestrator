@@ -2,6 +2,10 @@
 
 Multi-track orchestration tool that parallelizes AI coding agents (Claude, Codex) across git worktrees. Point it at a features list, and it will implement, verify, and merge features in parallel, with a real-time dashboard to monitor progress.
 
+<img src="docs/dashboard_overview.png" alt="Dashboard" width="50%">
+<img src="docs/agents_overview.png" alt="Agents" width="50%">
+<img src="docs/features_overview.png" alt="Features" width="50%">
+
 ## Table of Contents
 
 - [Why this exists](#why-this-exists)
@@ -14,11 +18,6 @@ Multi-track orchestration tool that parallelizes AI coding agents (Claude, Codex
 - [How it works](#how-it-works)
 - [Security Considerations](#security-considerations)
 - [Development](#development)
-
-<!-- SCREENSHOT: Place a screenshot of the dashboard here showing tracks running with live output.
-     Recommended: capture the dashboard at http://localhost:3001 with 2+ tracks active.
-     Save as docs/screenshot-dashboard.png and uncomment the line below. -->
-<!-- ![Dashboard](docs/screenshot-dashboard.png) -->
 
 > **Warning:** This tool gives AI agents autonomous access to your codebase, filesystem, and shell. It also runs git commands automatically: creating branches, merging, and pushing to your repository. **Always back up your repository before using this tool.** Do not use this on production projects or repositories containing sensitive data without reading the [Security Considerations](#security-considerations) section below. AI agents can produce incorrect, insecure, or destructive code. You are responsible for everything the agents commit. Use at your own risk.
 
@@ -360,9 +359,9 @@ When enabled, the verification agent gets Chrome DevTools MCP tools in addition 
 
 **Setup:**
 
-1. Enable during `npx agent-orchestrator init` (or set `browser.enabled` to `true` in the config)
-2. On first start, the orchestrator checks if the Chrome DevTools MCP server is registered with each configured agent (preferred + fallbacks)
-3. If missing, it prompts you to install it automatically (runs `<agent> mcp add chrome-devtools ...`)
+1. Enable during `npx agent-orchestrator init` (or toggle `browser.enabled` in the dashboard settings)
+2. The orchestrator manages a `.mcp.json` file in your project root with the Chrome DevTools MCP entry — no per-agent installation needed
+3. The `.mcp.json` is automatically copied into worktrees (via `copyFiles`), so agents pick it up in every session
 4. Have Chrome or Chromium running during orchestrator runs
 
 **Configuration:**
